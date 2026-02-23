@@ -9,7 +9,6 @@ import teste_crud_perfis.demo.repository.UsuarioRepository;
 import java.util.Collections;
 
 @Service
-@RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UsuarioRepository repository;

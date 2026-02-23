@@ -1,19 +1,24 @@
 package teste_crud_perfis.demo.controller;
 
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import teste_crud_perfis.demo.domain.Usuario;
+import teste_crud_perfis.demo.domain.dto.Usuario.DadosLogin;
+import teste_crud_perfis.demo.domain.dto.Usuario.DadosRegistro;
+import teste_crud_perfis.demo.domain.dto.Usuario.MensagemResponse;
+import teste_crud_perfis.demo.domain.dto.Usuario.TokenResponse;
 import teste_crud_perfis.demo.repository.UsuarioRepository;
 import teste_crud_perfis.demo.security.JwtService;
 
 @RestController
 @RequestMapping("/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final UsuarioRepository repository;
@@ -21,40 +26,53 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
 
-    public AuthController(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtService jwtService){
-        this.repository = usuarioRepository;
+    public AuthController(UsuarioRepository repository,
+                          PasswordEncoder passwordEncoder,
+                          AuthenticationManager authenticationManager,
+                          JwtService jwtService) {
+        this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
     }
 
-    // CADASTRO
     @PostMapping("/register")
-    public String register(@RequestBody @Valid Usuario usuario) {
+    public ResponseEntity<MensagemResponse> register(
+            @RequestBody @Valid DadosRegistro dados) {
 
-        if (repository.existsByEmail(usuario.getEmail())) {
-            throw new RuntimeException("Email já cadastrado");
+        if (repository.existsByEmail(dados.email())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Email já cadastrado"
+            );
         }
 
-        usuario.setSenha(passwordEncoder.encode(usuario.getSenha()));
+        Usuario usuario = new Usuario();
+        usuario.setNome(dados.nome());
+        usuario.setEmail(dados.email());
+        usuario.setSenha(passwordEncoder.encode(dados.senha()));
+
         repository.save(usuario);
 
-        return "Usuário cadastrado com sucesso!";
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(new MensagemResponse("Usuário cadastrado com sucesso"));
     }
 
-    // LOGIN
     @PostMapping("/login")
-    public String login(@RequestBody Usuario usuario) {
+    public ResponseEntity<TokenResponse> login(
+            @RequestBody @Valid DadosLogin dados) {
 
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        usuario.getEmail(),
-                        usuario.getSenha()
+                        dados.email(),
+                        dados.senha()
                 )
         );
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        String token = jwtService.gerarToken(userDetails);
 
-        return jwtService.gerarToken(userDetails);
+        return ResponseEntity.ok(new TokenResponse(token));
     }
 }

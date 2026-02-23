@@ -1,9 +1,13 @@
 package teste_crud_perfis.demo.controller;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 import teste_crud_perfis.demo.domain.Usuario;
+import teste_crud_perfis.demo.domain.dto.Usuario.DadosAtualizacaoUsuario;
+import teste_crud_perfis.demo.domain.dto.Usuario.DadosCadastroUsuario;
+import teste_crud_perfis.demo.domain.dto.Usuario.DadosListagemUsuario;
 import teste_crud_perfis.demo.repository.UsuarioRepository;
 
 import java.util.List;
@@ -20,38 +24,63 @@ public class UsuarioController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // CRIAR
     @PostMapping
-    public Usuario criar(@RequestBody Usuario usuario) {
-        String senhaCripto = passwordEncoder.encode(usuario.getSenha());
+    public ResponseEntity<DadosListagemUsuario> criar(@RequestBody DadosCadastroUsuario dados, UriComponentsBuilder uriBuilder) {
+        String senhaCripto = passwordEncoder.encode(dados.senha());
+
+        var usuario = new Usuario();
+        usuario.setNome(dados.nome());
+        usuario.setEmail(dados.email());
         usuario.setSenha(senhaCripto);
-        return repository.save(usuario);
+
+        usuario = repository.save(usuario);
+
+        var uri = uriBuilder.path("/usuarios/{id}")
+                .buildAndExpand(usuario.getId())
+                .toUri();
+
+        return ResponseEntity
+                .created(uri)
+                .body(new DadosListagemUsuario(usuario));
     }
 
     @GetMapping
-    public List<Usuario> listar() {
-        return repository.findAll();
+    public ResponseEntity<List<DadosListagemUsuario>> listar() {
+        var usuarios = repository.findAll();
+
+        var listaDto = usuarios.stream()
+                .map(DadosListagemUsuario::new)
+                .toList();
+
+        return ResponseEntity.ok(listaDto);
     }
 
     @GetMapping("/{id}")
-    public Usuario buscar(@PathVariable Long id) {
-        return repository.findById(id).orElseThrow();
+    public ResponseEntity<DadosListagemUsuario> buscar(@PathVariable Long id) {
+        var usuario = repository.findById(id).orElseThrow();
+        return ResponseEntity.ok(new DadosListagemUsuario(usuario));
     }
 
     @PutMapping("/{id}")
-    public Usuario atualizar(@PathVariable Long id,
-                             @RequestBody Usuario usuarioAtualizado) {
+    public ResponseEntity<DadosListagemUsuario> atualizar(
+            @PathVariable Long id,
+            @RequestBody DadosAtualizacaoUsuario dados) {
 
-        Usuario usuario = repository.findById(id).orElseThrow();
+        var usuario = repository.findById(id)
+                .orElseThrow();
 
-        usuario.setNome(usuarioAtualizado.getNome());
-        usuario.setEmail(usuarioAtualizado.getEmail());
+        usuario.setNome(dados.nome());
+        usuario.setEmail(dados.email());
 
-        return repository.save(usuario);
+        repository.save(usuario);
+
+        return ResponseEntity.ok(new DadosListagemUsuario(usuario));
     }
 
+
     @DeleteMapping("/{id}")
-    public void deletar(@PathVariable Long id) {
+    public ResponseEntity<Void> deletar(@PathVariable Long id) {
         repository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }
